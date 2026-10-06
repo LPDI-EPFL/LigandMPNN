@@ -1,3 +1,15 @@
+## LigandMPNN with bulk tied position inputs
+
+This is a fork of LigandMPNN with additional input options for setting symmetry weights for bulk input
+
+Additional inputs
+'''
+--symmetry_residues_multi
+--symmetry_weights_multi
+'''
+
+These inputs are read through the same json input structure as the standard inputs. The rest of the code is unmodified.
+
 ## LigandMPNN
 
 This package provides inference code for [LigandMPNN](https://www.biorxiv.org/content/10.1101/2023.12.22.573103v1) & [ProteinMPNN](https://www.science.org/doi/10.1126/science.add2187) models. The code and model parameters are available under the MIT license.
