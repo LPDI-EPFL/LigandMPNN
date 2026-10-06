@@ -3,10 +3,10 @@
 This is a fork of LigandMPNN with additional input options for setting symmetry weights for bulk input
 
 Additional inputs
-'''
---symmetry_residues_multi
---symmetry_weights_multi
-'''
+```
+--symmetry_residues_multi : "A1,B1|A2,B2"          - Ties positions A1 and B1, and A2 and B2
+--symmetry_weights_multi  : "0.5,0.5|0.5,0.5"      - Sets weight between residues for averaging
+```
 
 These inputs are read through the same json input structure as the standard inputs. The rest of the code is unmodified.
 
