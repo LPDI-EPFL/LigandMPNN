@@ -126,7 +126,6 @@ def main(args) -> None:
     if args.fixed_residues_multi:
         with open(args.fixed_residues_multi, "r") as fh:
             fixed_residues_multi = json.load(fh)
-            fixed_residues_multi = {key:value.split() for key,value in fixed_residues_multi.items()}
     else:
         fixed_residues = [item for item in args.fixed_residues.split()]
         fixed_residues_multi = {}
@@ -136,7 +135,6 @@ def main(args) -> None:
     if args.redesigned_residues_multi:
         with open(args.redesigned_residues_multi, "r") as fh:
             redesigned_residues_multi = json.load(fh)
-            redesigned_residues_multi = {key:value.split() for key,value in redesigned_residues_multi.items()}
     else:
         redesigned_residues = [item for item in args.redesigned_residues.split()]
         redesigned_residues_multi = {}
@@ -182,12 +180,6 @@ def main(args) -> None:
         device=device,
     )
 
-    if len(args.parse_these_chains_only) != 0:
-        parse_these_chains_only_list = args.parse_these_chains_only.split(",")
-    else:
-        parse_these_chains_only_list = []
-
-
     # loop over PDB paths
     for pdb in pdb_paths:
         if args.verbose:
@@ -200,7 +192,7 @@ def main(args) -> None:
         protein_dict, backbone, other_atoms, icodes, _ = parse_PDB(
             pdb,
             device=device,
-            chains=parse_these_chains_only_list,
+            chains=args.parse_these_chains_only,
             parse_all_atoms=parse_all_atoms_flag,
             parse_atoms_with_zero_occupancy=args.parse_atoms_with_zero_occupancy,
         )
@@ -241,7 +233,9 @@ def main(args) -> None:
                         if amino_acid in alphabet:
                             j1 = restype_str_to_int[amino_acid]
                             omit_AA_per_residue[i1, j1] = 1.0
-
+        # added this line - did not accurately map fixed positions from the input
+        # into the tensor
+        fixed_residues = fixed_residues.split(' ')
         fixed_positions = torch.tensor(
             [int(item not in fixed_residues) for item in encoded_residues],
             device=device,
@@ -277,11 +271,10 @@ def main(args) -> None:
             protein_dict["membrane_per_residue_labels"] = (
                 args.global_transmembrane_label + 0 * fixed_positions
             )
-        if len(args.chains_to_design) != 0:
+        if type(args.chains_to_design) == str:
             chains_to_design_list = args.chains_to_design.split(",")
         else:
             chains_to_design_list = protein_dict["chain_letters"]
-
         chain_mask = torch.tensor(
             np.array(
                 [
@@ -326,6 +319,22 @@ def main(args) -> None:
                 for t in t_list:
                     tmp_list.append(encoded_residue_dict[t])
                 remapped_symmetry_residues.append(tmp_list)
+
+        # specify which residues are linked for multi pdb input
+        elif args.symmetry_residues_multi:
+            with open(args.symmetry_residues_multi, "r") as fh:
+                symmetry_residues_multi = json.load(fh)
+
+            symmetry_residues = symmetry_residues_multi[pdb]
+            symmetry_residues_list_of_lists = [
+                x.split(",") for x in symmetry_residues.split("|")
+            ]
+            remapped_symmetry_residues = []
+            for t_list in symmetry_residues_list_of_lists:
+                tmp_list = []
+                for t in t_list:
+                    tmp_list.append(encoded_residue_dict[t])
+                remapped_symmetry_residues.append(tmp_list)
         else:
             remapped_symmetry_residues = [[]]
 
@@ -334,6 +343,15 @@ def main(args) -> None:
             symmetry_weights = [
                 [float(item) for item in x.split(",")]
                 for x in args.symmetry_weights.split("|")
+            ]
+        # specify linking weights for multi pdb input
+        elif args.symmetry_weights_multi:
+            with open(args.symmetry_weights_multi, "r") as fh:
+                symmetry_weights_multi = json.load(fh)
+            symmetry_weights_string = symmetry_weights_multi[pdb]
+            symmetry_weights = [
+                [float(item) for item in x.split(",")]
+                for x in symmetry_weights_string.split("|")
             ]
         else:
             symmetry_weights = [[]]
@@ -809,11 +827,26 @@ if __name__ == "__main__":
         default="",
         help="Add list of lists for which residues need to be symmetric, e.g. 'A12,A13,A14|C2,C3|A5,B6'",
     )
+
+    argparser.add_argument(
+        "--symmetry_residues_multi",
+        type=str,
+        default="",
+        help="Path to json mapping of symmetry residue mapping {'pdb_path': 'A12,A13,A14|C2,C3|A5,B6'}",
+    )
+
     argparser.add_argument(
         "--symmetry_weights",
         type=str,
         default="",
         help="Add weights that match symmetry_residues, e.g. '1.01,1.0,1.0|-1.0,2.0|2.0,2.3'",
+    )
+
+    argparser.add_argument(
+        "--symmetry_weights_multi",
+        type=str,
+        default="",
+        help="Path to json mapping of symmetry weights mapping {'pdb_path': '1.01,1.0,1.0|-1.0,2.0|2.0,2.3'}",
     )
     argparser.add_argument(
         "--homo_oligomer",
@@ -885,15 +918,15 @@ if __name__ == "__main__":
     argparser.add_argument(
         "--chains_to_design",
         type=str,
-        default="",
-        help="Specify which chains to redesign, all others will be kept fixed, 'A,B,C,F'",
+        default=None,
+        help="Specify which chains to redesign, all others will be kept fixed.",
     )
 
     argparser.add_argument(
         "--parse_these_chains_only",
         type=str,
         default="",
-        help="Provide chains letters for parsing backbones, 'A,B,C,F'",
+        help="Provide chains letters for parsing backbones, 'ABCF'",
     )
 
     argparser.add_argument(
